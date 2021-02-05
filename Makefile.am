@@ -36,6 +36,7 @@ all: $(wispwot) $(nobase_bin_SCRIPTS) ChangeLog AUTHORS  $(nobase_sitewisp_DATA)
 
 SOURCES =               \
   wispwot/wispwot.w    \
+  wispwot/doctests.w    \
   run-wispwot.w
 
 EXTRA_DIST =            \

@@ -26,6 +26,6 @@
 define-module : wispwot wispwot
   . #:export : wispwot
 
-define : wispwot
-  display "Hello, World!\n"
+define : wispwot startfile
+  list "ONE,100"
 

@@ -1,14 +1,55 @@
-wispwot - tagline of your project
-======================================
+wispwot - generic implementation of the spam- and disruption defense of the WoT in Freenet 
+==========================================================================================
 
-Description of wispwot.
+This implements the defense from the Freenet project against
+disruption of communication. It is created to experiment with ways to
+improve the scaling and performance.
+
+For details on the goals,
+see https://github.com/freenet/plugin-WebOfTrust/raw/master/developer-documentation/core-developers-manual/OadSFfF-version1.2-non-print-edition.pdf
+and see https://www.draketo.de/english/freenet/deterministic-load-decentralized-spam-filter
+
+It operates on a minimal representation of trust between identities:
+One file that maps index-values to arbitrary identifiers
+    (index,identifier)
+and for each index a directory/file entry named after the index
+(first two numbers for the directory, rest for the file) that
+maps index values of trustees to a trust value between -100 and 100
+    (trustee-index,trust)
+
+The maxiumum number of tracked IDs is hard-limited to 65536 to allow
+tracking IDs as 16bit unsigned integers (for efficiency). More IDs can
+exist in the network, but such a high count is irrelevant for
+individual interactions.
+
+Longterm-plan: Expose a REST-service with the following actions:
+- PUT an ID with trust values (trustee-ID,trust).
+- GET an ID to receive its score.
+- GET a list of IDs to check for update of trust and/or content.
+- PUT new trust values directly (truster-ID,trustee-ID,trust) for fine-grained trust-control.
+- POST a list of IDs you requested without seeing a change.
+
+PUT of changed IDs and POST of lists of unchanged IDs drive the state
+of the WoT.
 
 See NEWS for user-visible changes.
 See ChangeLog or the history for detailed changes.
 
 ## Usage
 
-$ wispwot [options] [arguments]
+Get the trusted identities with their scores as seen from a given start identity:
+
+$ wispwot <startfile>
+<ID>,<score>
+<ID>,<score>
+…
+
+As a simple example here in the repository:
+
+$ ./run-wispwot trust/00/0000
+, => ONE,100
+
+(more to come, see above for the plan)
 
 ## Install
 
