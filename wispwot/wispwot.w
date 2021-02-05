@@ -25,7 +25,51 @@
 
 define-module : wispwot wispwot
   . #:export : wispwot
+  
+import : wispwot doctests
+         srfi srfi-1
+         ice-9 rdelim
+         rnrs bytevectors
+
+define : read-known-identities filename
+  ##
+    tests
+      test-equal : list->u16vector '("ZERO" "ONE")
+        read-known-identities "known-identities"
+  with-input-from-file filename
+    λ _
+      let loop : (identities '()) (line (read-line))
+        cond 
+          : eof-object? line
+            list->vector : reverse! identities
+          else
+            loop
+              cons : second : string-split line #\,
+                   . identities
+              read-line
+
+define known-identities
+  read-known-identities "known-identities"
+
+define : index->identity index
+  vector-ref known-identities index
+  
+define : replace-indizes-by-identities score-list
+  map
+      λ (x)
+        string-join (list (index->identity (string->number (first x))) (second x))
+             . ","
+      . score-list
 
 define : wispwot startfile
-  list "ONE,100"
+  ##
+    tests
+      test-equal : list "ONE,100"
+           wispwot "trust/00/000"
+  with-input-from-file startfile
+    λ _
+      replace-indizes-by-identities
+          map : λ (x) (string-split x #\, )
+                list : read-line
+      ; list "ONE,100"
 
