@@ -94,10 +94,11 @@ define : index->path index
         index->path 1001
   define number
     format #f "~5,'0d" index 
-  string-append "trust/"
-    string-take number 2
+  string-join 
+    list "trust"
+      string-take number 2
+      string-take-right number 3
     . "/"
-    string-take-right number 3
 
 define : wispwot startfile
   ##
