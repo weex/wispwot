@@ -18,7 +18,7 @@ define : test
     tests
         test-equal "ONE,100\n"
           with-output-to-string
-             λ _ : main '("wispwot" "trust/00/000")
+             λ _ : main '("wispwot" "trust/00/00")
   doctests-testmod %this-module
   doctests-testmod : resolve-module '(wispwot wispwot)
 

@@ -46,7 +46,7 @@ $ wispwot <startfile>
 
 As a simple example here in the repository:
 
-$ ./run-wispwot trust/00/0000
+$ ./run-wispwot trust/00/00
 , => ONE,100
 
 (more to come, see above for the plan)

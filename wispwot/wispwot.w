@@ -68,7 +68,7 @@ define : read-trustfile trustfile
   ##
     tests
       test-equal : cons (list->u16vector (list 1 3)) (list->s8vector (list 100 -5))
-        read-trustfile "trust/00/000"
+        read-trustfile "trust/00/00"
   define entries
     with-input-from-file trustfile
       λ _
@@ -86,18 +86,18 @@ define : read-trustfile trustfile
 define : index->path index
   ##
     tests
-      test-equal "trust/00/000"
+      test-equal "trust/00/00"
         index->path 0
-      test-equal "trust/00/001"
+      test-equal "trust/00/01"
         index->path 1
-      test-equal "trust/01/001"
-        index->path 1001
+      test-equal "trust/01/01"
+        index->path 257
   define number
-    format #f "~5,'0d" index 
+    format #f "~4,'0x" index 
   string-join 
     list "trust"
       string-take number 2
-      string-take-right number 3
+      string-take-right number 2
     . "/"
 
 define : read-all-trust index
@@ -135,7 +135,7 @@ define : wispwot startfile
   ##
     tests
       test-equal : list "ONE,100"
-           wispwot "trust/00/000"
+           wispwot "trust/00/00"
   with-input-from-file startfile
     λ _
       replace-indizes-by-identities
