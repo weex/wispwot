@@ -20,6 +20,8 @@
 
 ;;; Commentary:
 
+;; for emacs (progn (defun test-this-file () (interactive) (save-buffer) (shell-command "cd ..; bash ./run-wispwot.w --test")) (local-set-key (kbd "<f9>") 'test-this-file))
+
 ;;; Code:
 
 
@@ -34,7 +36,7 @@ import : wispwot doctests
 define : read-known-identities filename
   ##
     tests
-      test-equal : list->u16vector '("ZERO" "ONE")
+      test-equal : list->vector '("ZERO" "ONE")
         read-known-identities "known-identities"
   with-input-from-file filename
     λ _

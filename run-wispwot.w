@@ -20,8 +20,7 @@ define : test
           with-output-to-string
              λ _ : main '("wispwot" "trust/00/000")
   doctests-testmod %this-module
-  doctests-testmod : resolve-module '(eris eris)
-  doctests-testmod : resolve-module '(eris base32)
+  doctests-testmod : resolve-module '(wispwot wispwot)
 
 
 define : main args
