@@ -31,6 +31,7 @@ define-module : wispwot wispwot
 import : wispwot doctests
          srfi srfi-1
          ice-9 rdelim
+         ice-9 format
          rnrs bytevectors
 
 define : read-known-identities filename
@@ -81,7 +82,22 @@ define : read-trust trustfile
   define trust
     list->s8vector : map second entries
   cons trustees trust
-  
+
+define : index->path index
+  ##
+    tests
+      test-equal "trust/00/000"
+        index->path 0
+      test-equal "trust/00/001"
+        index->path 1
+      test-equal "trust/01/001"
+        index->path 1001
+  define number
+    format #f "~5,'0d" index 
+  string-append "trust/"
+    string-take number 2
+    . "/"
+    string-take-right number 3
 
 define : wispwot startfile
   ##
