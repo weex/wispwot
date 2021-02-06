@@ -125,13 +125,21 @@ define : read-all-trust index
           : index : first open
             trustees-and-trust : read-trustfile : index->path index
             trustees : car trustees-and-trust
+            given-trust : cdr trustees-and-trust
+          define indizes-with-positive-trust
+            remove : λ (x) : > 1 : s8vector-ref given-trust x
+                     iota : s8vector-length given-trust
+          define positive-trustees
+            map : λ(x) : u16vector-ref trustees x
+                . indizes-with-positive-trust
           vector-set! trust index trustees-and-trust
           loop : cdr open
             append
-              reverse! : u16vector->list trustees
+              reverse! positive-trustees
               . next
   write trust
   . trust
+
 
 define : wispwot startfile
   ##
