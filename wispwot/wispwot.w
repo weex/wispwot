@@ -137,8 +137,46 @@ define : read-all-trust index
             append
               reverse! positive-trustees
               . next
-  write trust
   . trust
+
+define : calculate-ranks index trust
+  ##
+    tests
+      test-equal 1
+        u8vector-ref (calculate-ranks 0 (read-all-trust 0)) 1
+  define ranks
+    make-u8vector : vector-length known-identities
+      . 255
+  let loop : (open (list index)) (next '()) (rank 0)
+    cond
+      : and (null? open) (null? next)
+        . 'done
+      : null? open
+        ;; one level deeper
+        loop (reverse! next) '() (+ rank 1)
+      : < 255 : u8vector-ref ranks : first open
+        ;; already known
+        loop (cdr open) next rank
+      else
+        let* 
+          : index : first open
+            trustees-and-trust : vector-ref trust index
+            trustees : car trustees-and-trust
+            given-trust : cdr trustees-and-trust
+          define indizes-with-positive-trust
+            remove : λ (x) : > 1 : s8vector-ref given-trust x
+                     iota : s8vector-length given-trust
+          define positive-trustees
+            map : λ(x) : u16vector-ref trustees x
+                . indizes-with-positive-trust
+          u8vector-set! ranks index rank
+          loop : cdr open
+            append
+              reverse! positive-trustees
+              . next
+            . rank
+  . ranks
+
 
 
 define : wispwot startfile
