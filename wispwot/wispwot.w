@@ -139,6 +139,7 @@ define : read-all-trust index
               . next
   . trust
 
+
 define : calculate-ranks index trust
   ##
     tests
@@ -158,7 +159,7 @@ define : calculate-ranks index trust
         ;; already known
         loop (cdr open) next rank
       else
-        let* 
+        let*
           : index : first open
             trustees-and-trust : vector-ref trust index
             trustees : car trustees-and-trust
@@ -176,7 +177,6 @@ define : calculate-ranks index trust
               . next
             . rank
   . ranks
-
 
 
 define : wispwot startfile
