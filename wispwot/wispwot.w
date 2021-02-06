@@ -64,11 +64,11 @@ define : replace-indizes-by-identities score-list
              . ","
       . score-list
 
-define : read-trust trustfile
+define : read-trustfile trustfile
   ##
     tests
-      test-equal : cons (list->u16vector '(1 3)) (list->s8vector '(100 -5))
-        read-trust "trust/00/000"
+      test-equal : cons (list->u16vector (list 1 3)) (list->s8vector (list 100 -5))
+        read-trustfile "trust/00/000"
   define entries
     with-input-from-file trustfile
       λ _
@@ -99,6 +99,37 @@ define : index->path index
       string-take number 2
       string-take-right number 3
     . "/"
+
+define : read-all-trust index
+  ##
+    tests
+      test-equal : cons (list->u16vector (list 1 3)) (list->s8vector (list 100 -5))
+        vector-ref (read-all-trust 0) 0
+  define trust
+    make-vector : vector-length known-identities
+      . #f
+  let loop : (open (list index)) (next '())
+    cond
+      : and (null? open) (null? next)
+        . 'done
+      : null? open
+        ;; one level deeper
+        loop (reverse! next) '()
+      : vector-ref trust : first open
+        ;; already known
+        loop (cdr open) next
+      else
+        let* 
+          : index : first open
+            trustees-and-trust : read-trustfile : index->path index
+            trustees : car trustees-and-trust
+          vector-set! trust index trustees-and-trust
+          loop : cdr open
+            append
+              reverse! : u16vector->list trustees
+              . next
+  write trust
+  . trust
 
 define : wispwot startfile
   ##
