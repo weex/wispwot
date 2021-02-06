@@ -34,6 +34,29 @@ import : wispwot doctests
          ice-9 format
          rnrs bytevectors
 
+;; Datastructure-accessors
+define ranks-length u8vector-length
+define ranks-ref u8vector-ref
+define make-ranks make-u8vector
+define ranks-set! u8vector-set!
+define ranks->list u8vector->list
+define list->ranks list->u8vector
+
+define trusts-length s8vector-length
+define trusts-ref s8vector-ref
+define make-trusts make-s8vector
+define trusts-set! s8vector-set!
+define trusts->list s8vector->list
+define list->trusts list->s8vector
+
+define ids-length u16vector-length
+define ids-ref u16vector-ref
+define make-ids make-u16vector
+define ids-set! u16vector-set!
+define ids->list u16vector->list
+define list->ids list->u16vector
+
+
 define : read-known-identities filename
   ##
     tests
@@ -67,7 +90,7 @@ define : replace-indizes-by-identities score-list
 define : read-trustfile trustfile
   ##
     tests
-      test-equal : cons (list->u16vector (list 1 3)) (list->s8vector (list 100 -5))
+      test-equal : cons (list->ids (list 1 3)) (list->trusts (list 100 -5))
         read-trustfile "trust/00/00"
   define entries
     with-input-from-file trustfile
@@ -80,9 +103,9 @@ define : read-trustfile trustfile
                reverse lines
                loop (cons line lines) (read-line)
   define trustees
-    list->u16vector : map car entries
+    list->ids : map car entries
   define trust
-    list->s8vector : map cdr entries
+    list->trusts : map cdr entries
   cons trustees trust
 
 define : index->path index
@@ -105,7 +128,7 @@ define : index->path index
 define : read-all-trust index
   ##
     tests
-      test-equal : cons (list->u16vector (list 1 3)) (list->s8vector (list 100 -5))
+      test-equal : cons (list->ids (list 1 3)) (list->trusts (list 100 -5))
         vector-ref (read-all-trust 0) 0
   define trust
     make-vector : vector-length known-identities
@@ -127,10 +150,10 @@ define : read-all-trust index
             trustees : car trustees-and-trust
             given-trust : cdr trustees-and-trust
           define indizes-with-positive-trust
-            remove : λ (x) : > 1 : s8vector-ref given-trust x
-                     iota : s8vector-length given-trust
+            remove : λ (x) : > 1 : trusts-ref given-trust x
+                     iota : trusts-length given-trust
           define positive-trustees
-            map : λ(x) : u16vector-ref trustees x
+            map : λ(x) : ids-ref trustees x
                 . indizes-with-positive-trust
           vector-set! trust index trustees-and-trust
           loop : cdr open
@@ -144,9 +167,9 @@ define : calculate-ranks index trust
   ##
     tests
       test-equal 1
-        u8vector-ref (calculate-ranks 0 (read-all-trust 0)) 1
+        ranks-ref (calculate-ranks 0 (read-all-trust 0)) 1
   define ranks
-    make-u8vector : vector-length known-identities
+    make-ranks : vector-length known-identities
       . 255
   let loop : (open (list index)) (next '()) (rank 0)
     cond
@@ -155,7 +178,7 @@ define : calculate-ranks index trust
       : null? open
         ;; one level deeper
         loop (reverse! next) '() (+ rank 1)
-      : < 255 : u8vector-ref ranks : first open
+      : < 255 : ranks-ref ranks : first open
         ;; already known
         loop (cdr open) next rank
       else
@@ -165,18 +188,85 @@ define : calculate-ranks index trust
             trustees : car trustees-and-trust
             given-trust : cdr trustees-and-trust
           define indizes-with-positive-trust
-            remove : λ (x) : > 1 : s8vector-ref given-trust x
-                     iota : s8vector-length given-trust
+            remove : λ (x) : > 1 : trusts-ref given-trust x
+                     iota : trusts-length given-trust
           define positive-trustees
-            map : λ(x) : u16vector-ref trustees x
+            map : λ(x) : ids-ref trustees x
                 . indizes-with-positive-trust
-          u8vector-set! ranks index rank
+          ranks-set! ranks index rank
           loop : cdr open
             append
               reverse! positive-trustees
               . next
             . rank
   . ranks
+
+define : rank->capacity rank
+  ##
+    tests
+      test-equal 100 : rank->capacity 0
+      test-equal 40 : rank->capacity 1
+      test-equal 16 : rank->capacity 2
+      test-equal 6 : rank->capacity 3
+      test-equal 2 : rank->capacity 4
+      test-equal 1 : rank->capacity 5
+      test-equal 1 : rank->capacity 23
+      test-equal 1 : rank->capacity 255
+  define capacities
+    list->ranks '(100 40 16 6 2 1)
+  if {rank > 4} 1
+    ranks-ref capacities rank
+
+define : calculate-scores index trust ranks
+  ##
+    tests
+      test-equal 100
+        let : : trust : read-all-trust 0
+          vector-ref (calculate-scores 0 trust (calculate-ranks 0 trust)) 1
+      test-equal -2 ;; this is a vulnerability: the evil child 3 can take out its own "parent" 2 if that parent only got a little bit of trust
+        let : : trust : read-all-trust 0
+          vector-ref (calculate-scores 0 trust (calculate-ranks 0 trust)) 2
+  define scores
+    ;; need an ordinary vector, because "no score" is a legitimate value
+    make-vector : vector-length known-identities
+                . #f
+  let loop : (open (list index)) (next '())
+    cond
+      : and (null? open) (null? next)
+        . 'done
+      : null? open
+        ;; one level deeper
+        loop (reverse! next) '()
+      else
+        let*
+          : index : first open
+            trustees-and-trust : vector-ref trust index
+            trustees : car trustees-and-trust
+            given-trust : cdr trustees-and-trust
+            rank : ranks-ref ranks index
+            capacity : rank->capacity rank
+          define : add-to-score trustee trust
+              define current-score
+                vector-ref scores trustee
+              define score-increment
+                truncate/ (* trust capacity) 100
+              vector-set! scores trustee
+                + score-increment : or current-score 0
+          define indizes-with-positive-trust
+              remove : λ (x) : > 1 : trusts-ref given-trust x
+                       iota : trusts-length given-trust
+          define positive-trustees
+              map : λ(x) : ids-ref trustees x
+                  . indizes-with-positive-trust
+          map add-to-score
+            ids->list trustees
+            trusts->list given-trust
+          loop : cdr open
+            append
+              reverse! positive-trustees
+              . next
+  . scores
+  
 
 
 define : wispwot startfile
