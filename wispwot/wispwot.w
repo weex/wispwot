@@ -60,7 +60,7 @@ define : index->identity index
 define : replace-indizes-by-identities score-list
   map
       λ (x)
-        string-join (list (index->identity (string->number (first x))) (second x))
+        string-join (list (index->identity (string->number (first x) 16)) (second x))
              . ","
       . score-list
 
@@ -72,7 +72,9 @@ define : read-trustfile trustfile
   define entries
     with-input-from-file trustfile
       λ _
-        map : λ (x) (map string->number (string-split x #\, ))
+        map : λ (x) (let ((split (string-split x #\, )))
+                         (list (string->number (first split) 16)
+                               (string->number (second split))))
           let loop : (lines '()) (line (read-line))
             if : eof-object? line
                reverse lines
