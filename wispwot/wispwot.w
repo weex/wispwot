@@ -73,16 +73,16 @@ define : read-trustfile trustfile
     with-input-from-file trustfile
       λ _
         map : λ (x) (let ((split (string-split x #\, )))
-                         (list (string->number (first split) 16)
+                         (cons (string->number (first split) 16)
                                (string->number (second split))))
           let loop : (lines '()) (line (read-line))
             if : eof-object? line
                reverse lines
                loop (cons line lines) (read-line)
   define trustees
-    list->u16vector : map first entries
+    list->u16vector : map car entries
   define trust
-    list->s8vector : map second entries
+    list->s8vector : map cdr entries
   cons trustees trust
 
 define : index->path index
