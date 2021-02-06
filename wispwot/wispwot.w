@@ -36,7 +36,7 @@ import : wispwot doctests
 define : read-known-identities filename
   ##
     tests
-      test-equal : list->vector '("ZERO" "ONE")
+      test-equal : list->vector '("ZERO" "ONE" "TWO" "BAD" "OUT")
         read-known-identities "known-identities"
   with-input-from-file filename
     λ _
@@ -73,5 +73,4 @@ define : wispwot startfile
       replace-indizes-by-identities
           map : λ (x) (string-split x #\, )
                 list : read-line
-      ; list "ONE,100"
 
