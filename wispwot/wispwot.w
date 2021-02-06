@@ -63,6 +63,26 @@ define : replace-indizes-by-identities score-list
              . ","
       . score-list
 
+define : read-trust trustfile
+  ##
+    tests
+      test-equal : cons (list->u16vector '(1 3)) (list->s8vector '(100 -5))
+        read-trust "trust/00/000"
+  define entries
+    with-input-from-file trustfile
+      λ _
+        map : λ (x) (map string->number (string-split x #\, ))
+          let loop : (lines '()) (line (read-line))
+            if : eof-object? line
+               reverse lines
+               loop (cons line lines) (read-line)
+  define trustees
+    list->u16vector : map first entries
+  define trust
+    list->s8vector : map second entries
+  cons trustees trust
+  
+
 define : wispwot startfile
   ##
     tests
