@@ -31,8 +31,11 @@ define : main args
        test
      else
        display
-           string-join : wispwot : second args
-                   . "\n"
+           string-join
+             wispwot
+               . #f
+               second args
+             . "\n"
        newline
        
 
