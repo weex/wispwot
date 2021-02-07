@@ -343,7 +343,7 @@ define : import-trust-value wotstate ownid truster-id trustee-id value
     calculate-scores state ownid-index
   ;; FIXME: this is horribly expensive because it re-creates the
   ;;        known-identities for every new id
-  define : find-index-record-if-needed identity
+  define : find-index-record-if-needed state identity
     let : : known-index : hash-ref id-to-index-map identity
       when : not known-index
         hash-set! id-to-index-map identity : vector-length : wotstate-known-ids state
@@ -354,7 +354,7 @@ define : import-trust-value wotstate ownid truster-id trustee-id value
     find-index-record-if-needed state truster-id
   define trustee-index
     find-index-record-if-needed state trustee-id
-  if {truster-index >= (vector-length trust)}
+  if {truster-index >= (vector-length (wotstate-trustlists state))}
     set-wotstate-trustlists! state
       vector-append : wotstate-trustlists state
         cons (list->ids (list trustee-id)) (list->trusts (list value))
@@ -364,10 +364,33 @@ define : import-trust-value wotstate ownid truster-id trustee-id value
           vector-append (car t) trustee-index list->ids ids->list
           vector-append (cdr t) value list->trusts trusts->list
   ;; FIXME: (out-of-range "vector-ref" "Argument 2 out of range: ~S" (5) (5))
-  set! ranks
+  when {trustee-index >= (vector-length (wotstate-trustlists state))}
+    set-wotstate-trustlists! state
+      vector-append : wotstate-trustlists state
+        cons (list->ids (list)) (list->trusts (list))
+  set-wotstate-ranks! state
     calculate-ranks state ownid-index
-  calculate-scores state ownid-index
-  
+  define scores
+    calculate-scores state ownid-index
+  let*
+    :
+      changed-scores
+        append
+          remove : λ (x) : equal? (car x) (cdr x)
+            map : λ (x y) : cons x y
+              vector->list scores
+              vector->list : wotstate-scores state
+          drop (vector->list scores) (vector-length (wotstate-scores state))
+      changed-ids
+        append
+          remove : λ (x) : equal? (car x) (cdr x)
+            map : λ (x y) : cons x y
+              vector->list : wotstate-known-ids state
+              vector->list : wotstate-known-ids wotstate
+          drop (vector->list (wotstate-known-ids state)) (vector-length (wotstate-known-ids wotstate))
+      changed : map cons changed-ids changed-scores
+    set-wotstate-scores! state scores
+    . changed
 
 define : wispwot wotstate startfile
   ##
