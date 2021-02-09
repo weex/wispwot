@@ -20,7 +20,7 @@
 
 ;;; Commentary:
 
-;; for emacs (progn (defun test-this-file () (interactive) (save-buffer) (shell-command "cd ..; bash ./run-wispwot.w --test")) (local-set-key (kbd "<f9>") 'test-this-file))
+;; for emacs (progn (defun test-this-file () (interactive) (save-buffer) (async-shell-command "cd ..; bash ./run-wispwot.w --test")) (local-set-key (kbd "<f9>") 'test-this-file))
 
 ;;; Code:
 
@@ -33,8 +33,15 @@ import : wispwot doctests
          srfi srfi-9 ; define-record-type
          ice-9 rdelim
          ice-9 format
+         ice-9 pretty-print
          ice-9 optargs
          rnrs bytevectors
+
+;; debugging output
+define log-line pretty-print
+define log-add display
+;; define log-line or
+;; define log-add or
 
 ;; Datastructure definitions
 define ranks-length u8vector-length
@@ -156,6 +163,9 @@ define : read-all-trust wotstate index
       : null? open
         ;; one level deeper
         loop (reverse! next) '()
+      {(first open) >= (vector-length trust)}
+        ;; no trust values known
+        loop (cdr open) next
       : vector-ref trust : first open
         ;; already known
         loop (cdr open) next
@@ -197,33 +207,51 @@ define : calculate-ranks wotstate index
   define ranks
     make-ranks : vector-length : wotstate-known-ids wotstate
       . 255
+  log-add 'calculate-ranks:
   let loop : (open (list index)) (next '()) (rank 0)
+    ; write `((open ,open) (next ,next) (rank ,rank))
+    ; newline
     cond
       : and (null? open) (null? next)
+        log-line 'done
         . 'done
       : null? open
         ;; one level deeper
-        loop (reverse! next) '() (+ rank 1)
+        ;; log-add 'one-level-deeper
+        log-add rank
+        loop (reverse! next) '() (min 254 (+ rank 1))
       : < 255 : ranks-ref ranks : first open
         ;; already known
+        log-line 'already-known
         loop (cdr open) next rank
       else
+        ;; log-add "."
         let*
           : index : first open
             trustees-and-trust : vector-ref (wotstate-trustlists wotstate) index
             trustees : car trustees-and-trust
             given-trust : cdr trustees-and-trust
+          define : discard trustee-idx
+            define trustee-index
+                ids-ref trustees trustee-idx
+            or
+              ;; self-trust is a cycle
+              equal? index trustee-index
+              ;; discard trust 0 and lower: no need to follow
+              > 1 : trusts-ref given-trust trustee-idx
+              ;; discard ids with existing better or equal rank: they would form loops
+              >= rank : ranks-ref ranks trustee-index
           define indizes-with-positive-trust
-            remove : λ (x) : > 1 : trusts-ref given-trust x
-                     iota : trusts-length given-trust
+            remove discard
+                iota : trusts-length given-trust
           define positive-trustees
             map : λ(x) : ids-ref trustees x
                 . indizes-with-positive-trust
           ranks-set! ranks index rank
           loop : cdr open
-            append
-              reverse! positive-trustees
-              . next
+            delete-duplicates
+              append next
+                reverse! positive-trustees
             . rank
   . ranks
 
@@ -253,7 +281,7 @@ define : calculate-scores wotstate index
             ranks : calculate-ranks (make-wotstate known-identities trust #f #f) 0
             wotstate : make-wotstate known-identities trust ranks #f
           vector-ref (calculate-scores wotstate 0) 1
-      test-equal -2 ;; this is a vulnerability: the evil child 3 can take out its own "parent" 2 if that parent only got a little bit of trust. FIXME: Disallow score-changes to ancestors
+      test-equal 4 ;; In the original algorithm this is a vulnerability: the evil child 3 can take out its own "parent" 2 if that parent only got a little bit of trust. Disallow score-changes to ancestors
         let*
           : known-identities : read-known-identities "known-identities"
             trust : read-all-trust (make-wotstate known-identities #f #f #f) 0
@@ -264,6 +292,7 @@ define : calculate-scores wotstate index
     ;; need an ordinary vector, because "no score" is a legitimate value
     make-vector : vector-length : wotstate-known-ids wotstate
                 . #f
+  log-line 'calculate-scores
   let loop : (open (list index)) (next '())
     cond
       : and (null? open) (null? next)
@@ -280,15 +309,29 @@ define : calculate-scores wotstate index
             rank : ranks-ref (wotstate-ranks wotstate) index
             capacity : rank->capacity rank
           define : add-to-score trustee trust
-              define current-score
+            define trustee-rank
+                ranks-ref (wotstate-ranks wotstate) trustee
+            define current-score
                 vector-ref scores trustee
-              define score-increment
+            define score-increment
                 truncate/ (* trust capacity) 100
+            ;; CHANGE: defend against distrusting your ancestors by strict hierarchical scoring
+            when {rank < trustee-rank}
               vector-set! scores trustee
                 + score-increment : or current-score 0
+          define : discard trustee-idx
+              define trustee-index
+                  ids-ref trustees trustee-idx
+              ;; self-trust gives no rank
+              equal? index trustee-index
+              ;; discard trust 0 and lower
+              > 1 : trusts-ref given-trust trustee-idx
+              ;; discard ids with better or equal rank: their scores were already counted
+              >= : ranks-ref (wotstate-ranks wotstate) index
+                   ranks-ref (wotstate-ranks wotstate) trustee-index
           define indizes-with-positive-trust
-              remove : λ (x) : > 1 : trusts-ref given-trust x
-                       iota : trusts-length given-trust
+              remove discard
+                  iota : trusts-length given-trust
           define positive-trustees
               map : λ(x) : ids-ref trustees x
                   . indizes-with-positive-trust
@@ -301,17 +344,31 @@ define : calculate-scores wotstate index
               . next
   . scores
 
-define* : vector-append vec value #:optional l->v v->l
+define* : vector-append! vec value #:optional  make-vec vec-len vec-ref vec-set!
   . "Recreate the vector with the value added."
   ;; FIXME: this is horribly expensive
-  define ->v : or l->v list->vector
-  define ->l : or v->l vector->list
-  ->v
-    reverse!
-      cons value
-        reverse!
-          ->l vec
+  ;; TODO: move datastructures to (ice-9 arrays)
+  define make : or make-vec make-vector
+  define len : or vec-len vector-length
+  define ref : or vec-ref vector-ref
+  define set! : or vec-set! vector-set!
+  define new-vector
+    make : + 1 : len vec
+  define len-vec : len vec
+  ;; log-line 'vector-append!
+  if make-vec ;; specialized vector to save space
+    let loop : : idx 0
+      when {idx < len-vec}
+        set! new-vector idx : ref vec idx
+        loop {idx + 1}
+    vector-move-left! vec 0 (len vec) new-vector 0
+  set! new-vector (len vec) value
+  . new-vector
   
+
+;; one id-to-index-map per ownid
+define id-to-index-map-cache
+  make-hash-table 8
 
 define : import-trust-value wotstate ownid truster-id trustee-id value
   . "Import a trust-edge using identities (not indizes) and recalculate all values.
@@ -320,35 +377,47 @@ define : import-trust-value wotstate ownid truster-id trustee-id value
   ##
     tests
       test-equal (list (cons "ANTANS" 40))
+       car
         import-trust-value : make-wotstate (read-known-identities "known-identities") #f #f #f
           . "ZERO" "ONE" "ANTANS" 100
-  ;; TODO: keep state instead of recalculating everything here
+  ;; use a cached map for inverse lookup id->index
   define id-to-index-map
-    let : : m : make-hash-table : + 2 : vector-length : wotstate-known-ids wotstate
-      let loop : (index 0)
-        if {index < (vector-length (wotstate-known-ids wotstate))}
-          begin
-            hash-set! m (vector-ref (wotstate-known-ids wotstate) index) index
-            loop {index + 1}
-          . m
+    or : and=> (hash-get-handle id-to-index-map-cache ownid) cdr
+      let : : m : make-hash-table : vector-length : wotstate-known-ids wotstate
+        hash-set! id-to-index-map-cache ownid m
+        let loop : (index 0)
+          if {index < (vector-length (wotstate-known-ids wotstate))}
+            begin
+              hash-set! m (vector-ref (wotstate-known-ids wotstate) index) index
+              loop {index + 1}
+            . m
   define ownid-index
     hash-ref id-to-index-map ownid
   define state
-    make-wotstate (wotstate-known-ids wotstate) #f #f #f
-  set-wotstate-trustlists! state
-    read-all-trust state ownid-index 
-  set-wotstate-ranks! state
-    calculate-ranks state ownid-index
-  set-wotstate-scores! state
-    calculate-scores state ownid-index
+    make-wotstate
+        wotstate-known-ids wotstate
+        wotstate-trustlists wotstate
+        wotstate-ranks wotstate
+        wotstate-scores wotstate
+  when : not : wotstate-trustlists state
+    set-wotstate-trustlists! state
+      read-all-trust state ownid-index
+  when : not : wotstate-ranks state
+    set-wotstate-ranks! state
+      calculate-ranks state ownid-index
+  when : not : wotstate-scores state
+    set-wotstate-scores! state
+      calculate-scores state ownid-index
   ;; FIXME: this is horribly expensive because it re-creates the
   ;;        known-identities for every new id
   define : find-index-record-if-needed state identity
+    ;; log-line 'find-index-record-if-needed
     let : : known-index : hash-ref id-to-index-map identity
       when : not known-index
+        ;; log-line 'find-index-record-was-needed
         hash-set! id-to-index-map identity : vector-length : wotstate-known-ids state
         set-wotstate-known-ids! state
-          vector-append (wotstate-known-ids state) identity
+          vector-append! (wotstate-known-ids state) identity
       hash-ref id-to-index-map identity
   define truster-index
     find-index-record-if-needed state truster-id
@@ -356,17 +425,16 @@ define : import-trust-value wotstate ownid truster-id trustee-id value
     find-index-record-if-needed state trustee-id
   if {truster-index >= (vector-length (wotstate-trustlists state))}
     set-wotstate-trustlists! state
-      vector-append : wotstate-trustlists state
-        cons (list->ids (list trustee-id)) (list->trusts (list value))
+      vector-append! : wotstate-trustlists state
+        cons (list->ids (list trustee-index)) (list->trusts (list value))
     vector-set! (wotstate-trustlists state) truster-index
       let : : t : vector-ref (wotstate-trustlists state) truster-index
         cons
-          vector-append (car t) trustee-index list->ids ids->list
-          vector-append (cdr t) value list->trusts trusts->list
-  ;; FIXME: (out-of-range "vector-ref" "Argument 2 out of range: ~S" (5) (5))
+          vector-append! (car t) trustee-index make-ids ids-length ids-ref ids-set!
+          vector-append! (cdr t) value make-trusts trusts-length trusts-ref trusts-set!
   when {trustee-index >= (vector-length (wotstate-trustlists state))}
     set-wotstate-trustlists! state
-      vector-append : wotstate-trustlists state
+      vector-append! : wotstate-trustlists state
         cons (list->ids (list)) (list->trusts (list))
   set-wotstate-ranks! state
     calculate-ranks state ownid-index
@@ -379,7 +447,7 @@ define : import-trust-value wotstate ownid truster-id trustee-id value
           remove : λ (x) : equal? (car x) (cdr x)
             map : λ (x y) : cons x y
               vector->list scores
-              vector->list : wotstate-scores state
+              if (wotstate-scores wotstate) (vector->list (wotstate-scores wotstate)) (list)
           drop (vector->list scores) (vector-length (wotstate-scores state))
       changed-ids
         append
@@ -390,7 +458,64 @@ define : import-trust-value wotstate ownid truster-id trustee-id value
           drop (vector->list (wotstate-known-ids state)) (vector-length (wotstate-known-ids wotstate))
       changed : map cons changed-ids changed-scores
     set-wotstate-scores! state scores
-    . changed
+    ;; FIXME: here I force a GC, because once objects get too large the GC does not trigger reliably anymore
+    when : = 0 : random 100
+           gc
+    cons changed state
+
+
+define : import-trust-csv trustfile
+  . "import a file with truster;trustee;trust lines and a header"
+  ##
+    tests
+      test-equal #f
+       if #t ;; too slow test.
+        . #f
+        let : : changed-and-state : import-trust-csv "trust-anonymized-2020-11-01-under-attack-sorted.csv"
+          let : : time : current-time
+            ;; tie in the actual trust structure
+            let*
+              : state1 : cdr : import-trust-value (cdr changed-and-state) "OBSERVER" "OBSERVER" "15363" 100
+                state2 : cdr : import-trust-value state1 "OBSERVER" "OBSERVER" "242" 100
+                changed : first : import-trust-value state2 "OBSERVER" "OBSERVER" "853" 100
+              display "Time (seconds) for three full recalculations: "
+              write : - (current-time) time
+              newline
+              . changed
+  define : read-all-trustlines port
+    let loop : (trust-triples '()) (line (read-line port))
+      if : eof-object? line
+         reverse! trust-triples
+         loop
+           cons (let ((l (string-split line #\;)))
+                     (append (take l 2) (list (inexact->exact (string->number (third l))))))
+             . trust-triples
+           read-line port
+  define ID_ZERO "OBSERVER"
+  define initial-state
+       make-wotstate
+         list->vector (list ID_ZERO)
+         list->vector (list (cons (list->ids '()) (list->trusts '())))
+         list->ranks (list 0)
+         list->vector (list 100)
+  with-input-from-file trustfile
+    λ _
+      ;; skip the first line
+      read-line
+      ;; read all lines
+      ;; FIXME: this is currently very inefficient, both in memory and
+      ;; time, because import-trust-value recreates all datastructures
+      ;; on every run. As first measure add save and load to persist
+      ;; and recover using a given directory
+      fold
+        λ : trust-triple changed-and-state
+            log-line trust-triple
+            apply import-trust-value (cdr changed-and-state) ID_ZERO trust-triple
+        cons '() initial-state
+        read-all-trustlines (current-input-port)
+       
+       
+
 
 define : wispwot wotstate startfile
   ##
