@@ -37,6 +37,8 @@
          (ice-9 optargs)
          (rnrs bytevectors))
 
+#!curly-infix
+
 ;; debugging output
 (define log-line pretty-print)
 (define log-add display)
