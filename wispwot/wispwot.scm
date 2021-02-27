@@ -471,7 +471,7 @@
   #(
     (tests
       (test-equal #f
-       (if #t ;; too slow test.
+       (if #f ;; too slow test.
         #f
         (let ((changed-and-state (import-trust-csv "trust-anonymized-2020-11-01-under-attack-sorted.csv")))
           (let ((time (current-time)))
