@@ -487,7 +487,7 @@ define : import-trust-csv trustfile
       if : eof-object? line
          reverse! trust-triples
          loop
-           cons (let ((l (string-split line #\;)))
+           cons (let ((l (string-split line (string-ref ";" 0))))
                      (append (take l 2) (list (inexact->exact (string->number (third l))))))
              . trust-triples
            read-line port
