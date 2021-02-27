@@ -145,11 +145,11 @@ define : doctests-testmod mod
                                       : (('quote id) tests ...) moretests ...
                                         string-join
                                             list filename 
-                                                string-join (string-split (symbol->string name) #\/) "--" ;; escape / in paths
+                                                string-join (string-split (symbol->string name) #\/ ) "--" ;; escape / in paths
                                                 symbol->string id
                                             . "--"
                                       : tests ...
-                                        string-join : list filename : string-join (string-split (symbol->string name) #\/) "--" ;; escape / in paths
+                                        string-join : list filename : string-join (string-split (symbol->string name) #\/ ) "--" ;; escape / in paths
                                                      . "--"
                                  body
                                      match doctest
