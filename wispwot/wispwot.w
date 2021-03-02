@@ -26,7 +26,7 @@
 
 
 define-module : wispwot wispwot
-  . #:export : wispwot
+  . #:export : wispwot import-trust-csv
   
 import : wispwot doctests
          srfi srfi-1 ; lists
