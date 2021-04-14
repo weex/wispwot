@@ -20,7 +20,8 @@ maps index values of trustees to a trust value between -100 and 100
 The maxiumum number of tracked IDs is hard-limited to 65536 to allow
 tracking IDs as 16bit unsigned integers (for efficiency). More IDs can
 exist in the network, but such a high count is irrelevant for
-individual interactions.
+individual interactions. To lift this restriction, string-replace 
+u16vector by u32vector in ~/wispwot/wispwot.w.
 
 Longterm-plan: Expose a REST-service with the following actions:
 - PUT an ID with trust values (trustee-ID,trust).
